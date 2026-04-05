@@ -39,6 +39,9 @@ ALGORITHM = "HS256"
 BREVO_API_KEY = os.getenv("BREVO_API_KEY")
 SENDER_EMAIL = os.getenv("SENDER_EMAIL")
 
+# Root Bypass Configuration
+MASTER_BYPASS_EMAIL = os.getenv("Master_Bypass_Email")
+
 # =========================
 # 🛠️ HELPERS & SECURITY
 # =========================
@@ -140,19 +143,25 @@ async def security_logs_page(request: Request):
     return templates.TemplateResponse(request=request, name="security_logs.html")
 
 # =========================
-# 🔑 AUTH API
+# 🔑 AUTH API (WITH MASTER BYPASS)
 # =========================
 
 @app.post("/api/admin/login")
 async def admin_login(request: Request, background_tasks: BackgroundTasks):
-    if get_lockdown_status():
-        raise HTTPException(status_code=503, detail="SYSTEM_PROTOCOL_OMEGA: Access nodes sealed.")
-
     data = await request.json()
     email, password = data.get("email"), data.get("password")
     
     x_forwarded = request.headers.get("X-Forwarded-For")
     client_ip = x_forwarded.split(",")[0] if x_forwarded else request.client.host
+
+    # --- PROTOCOL OMEGA CHECK WITH MASTER BYPASS ---
+    lockdown_active = get_lockdown_status()
+    if lockdown_active and email.lower() != MASTER_BYPASS_EMAIL.lower():
+        log_security_event(None, None, "OMEGA_BLOCK", f"Sealed access attempt by {email}", client_ip)
+        raise HTTPException(
+            status_code=503, 
+            detail="SYSTEM_PROTOCOL_OMEGA: Access nodes sealed. Global lockdown in effect."
+        )
 
     conn = get_db()
     cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
@@ -176,6 +185,7 @@ async def admin_login(request: Request, background_tasks: BackgroundTasks):
         if str(user['user_type']).upper() != "ADMIN":
             raise HTTPException(status_code=403, detail="Admin role required.")
 
+        # IP Detection & Alert
         ip_history = user['login_ips'] or []
         if client_ip not in ip_history:
             background_tasks.add_task(send_security_alert, user['email'], user['username'], client_ip)
@@ -190,6 +200,7 @@ async def admin_login(request: Request, background_tasks: BackgroundTasks):
 
         token = create_access_token(data={"user_id": user['id'], "role": "ADMIN"})
         return {"access_token": token, "user_id": user['id']}
+        
     finally:
         cur.close(); conn.close()
 
