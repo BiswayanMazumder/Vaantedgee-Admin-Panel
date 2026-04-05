@@ -4,6 +4,7 @@ import psycopg2
 import psycopg2.extras
 import requests
 from datetime import datetime, timedelta
+from typing import Optional, List
 from dotenv import load_dotenv
 from jose import jwt, JWTError
 from fastapi import FastAPI, Request, HTTPException, Depends, status, Body, BackgroundTasks
@@ -48,8 +49,22 @@ def get_db():
         print("DB CONNECTION ERROR:", e)
         raise HTTPException(status_code=500, detail="Database connection failed")
 
+def log_security_event(admin_id: int, target_id: Optional[int], action: str, details: str, ip: str):
+    """System Audit Recorder: Writes to security_logs table."""
+    conn = get_db()
+    cur = conn.cursor()
+    try:
+        cur.execute("""
+            INSERT INTO security_logs (admin_id, target_user_id, action_type, details, ip_address)
+            VALUES (%s, %s, %s, %s, %s)
+        """, (admin_id, target_id, action, details, ip))
+        conn.commit()
+    except Exception as e:
+        print(f"AUDIT_LOG_ERROR: {e}")
+    finally:
+        cur.close(); conn.close()
+
 def send_security_alert(to_email: str, username: str, ip_address: str):
-    """Triggers Brevo REST API for Unusual Login detection."""
     url = "https://api.brevo.com/v3/smtp/email"
     headers = {
         "accept": "application/json",
@@ -69,9 +84,6 @@ def send_security_alert(to_email: str, username: str, ip_address: str):
                 <p style="margin:5px 0;"><b>IP Address:</b> {ip_address}</p>
                 <p style="margin:5px 0;"><b>Time:</b> {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')} UTC</p>
             </div>
-            <p style="color:#666; font-size:12px; margin-top:20px;">
-                If this was not you, please secure your account or contact support immediately.
-            </p>
         </div>
         """
     }
@@ -96,7 +108,7 @@ async def get_current_admin(token: str = Depends(oauth2_scheme)):
             raise HTTPException(status_code=403, detail="Insufficient clearance.")
         return payload
     except JWTError:
-        raise HTTPException(status_code=401, detail="Session expired. Re-authenticate.")
+        raise HTTPException(status_code=401, detail="Session expired.")
 
 # =========================
 # 🛡️ UI ROUTES
@@ -110,82 +122,92 @@ async def login_page(request: Request):
 async def admin_dashboard(request: Request):
     return templates.TemplateResponse(request=request, name="admin.html")
 
+@app.get("/admin/security")
+async def security_logs_page(request: Request):
+    return templates.TemplateResponse(request=request, name="security_logs.html")
+
 # =========================
-# 🔑 AUTH API (WITH GLOBAL LOCKOUT & BREVO ALERTS)
+# 🔑 AUTH API
 # =========================
 
 @app.post("/api/admin/login")
 async def admin_login(request: Request, background_tasks: BackgroundTasks):
+    data = await request.json()
+    email, password = data.get("email"), data.get("password")
+    
+    x_forwarded = request.headers.get("X-Forwarded-For")
+    client_ip = x_forwarded.split(",")[0] if x_forwarded else request.client.host
+
+    conn = get_db()
+    cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+    
     try:
-        data = await request.json()
-        email, password = data.get("email"), data.get("password")
-        
-        # Capture IP (Handles proxies)
-        x_forwarded = request.headers.get("X-Forwarded-For")
-        client_ip = x_forwarded.split(",")[0] if x_forwarded else request.client.host
+        cur.execute("SELECT id, username, email, password, user_type, failed_attempts, locked_until, login_ips FROM users WHERE email=%s", (email,))
+        user = cur.fetchone()
 
-        conn = get_db()
-        cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
-        
-        try:
-            # 1. Fetch user data including lockout state and IP history
-            cur.execute("SELECT id, username, email, password, user_type, failed_attempts, locked_until, login_ips FROM users WHERE email=%s", (email,))
-            user = cur.fetchone()
+        if not user:
+            raise HTTPException(status_code=401, detail="Invalid credentials.")
 
-            if not user:
-                raise HTTPException(status_code=401, detail="Invalid credentials.")
+        if user['locked_until'] and datetime.now() < user['locked_until']:
+            raise HTTPException(status_code=403, detail="Account globally locked.")
 
-            # 2. Global Lock Check
-            if user['locked_until'] and datetime.now() < user['locked_until']:
-                remaining_time = (user['locked_until'] - datetime.now()).total_seconds() / 60
-                raise HTTPException(
-                    status_code=403, 
-                    detail=f"SECURITY_ALERT: Account globally locked. Retry in {int(remaining_time)} minutes."
-                )
-
-            # 3. Verify Password
-            if not verify_password(password, user['password']):
-                new_attempts = user['failed_attempts'] + 1
-                if new_attempts >= 5:
-                    lock_time = datetime.now() + timedelta(minutes=15)
-                    cur.execute("UPDATE users SET failed_attempts=%s, locked_until=%s WHERE id=%s", (new_attempts, lock_time, user['id']))
-                else:
-                    cur.execute("UPDATE users SET failed_attempts=%s WHERE id=%s", (new_attempts, user['id']))
-                conn.commit()
-                raise HTTPException(status_code=401, detail=f"Invalid credentials. Attempt {new_attempts}/5.")
-
-            # 4. Check Admin Clearance
-            if str(user['user_type']).upper() != "ADMIN":
-                raise HTTPException(status_code=403, detail="ACCESS DENIED: Admin role required.")
-
-            # 5. UNUSUAL IP DETECTION
-            ip_history = user['login_ips'] if user['login_ips'] else []
-            if client_ip not in ip_history:
-                # Dispatch alert in background task to not slow down login response
-                background_tasks.add_task(send_security_alert, user['email'], user['username'], client_ip)
-
-            # 6. Success - Reset Lockout state and append current IP to array
-            cur.execute("""
-                UPDATE users 
-                SET failed_attempts = 0, 
-                    locked_until = NULL, 
-                    login_ips = array_append(COALESCE(login_ips, '{}'), %s) 
-                WHERE id = %s
-            """, (client_ip, user['id']))
+        if not verify_password(password, user['password']):
+            new_attempts = user['failed_attempts'] + 1
+            cur.execute("UPDATE users SET failed_attempts=%s WHERE id=%s", (new_attempts, user['id']))
             conn.commit()
+            raise HTTPException(status_code=401, detail=f"Attempt {new_attempts}/5.")
 
-            token = create_access_token(data={"user_id": user['id'], "role": "ADMIN"})
-            return {"access_token": token, "user_id": user['id']}
-            
-        finally:
-            cur.close()
-            conn.close()
+        if str(user['user_type']).upper() != "ADMIN":
+            raise HTTPException(status_code=403, detail="Admin role required.")
 
-    except HTTPException as e:
-        raise e
-    except Exception as e:
-        print(f"CRITICAL LOGIN ERROR: {str(e)}")
-        raise HTTPException(status_code=500, detail="Mainframe update failed.")
+        # IP Detection & Alert
+        ip_history = user['login_ips'] or []
+        if client_ip not in ip_history:
+            background_tasks.add_task(send_security_alert, user['email'], user['username'], client_ip)
+
+        cur.execute("""
+            UPDATE users 
+            SET failed_attempts = 0, locked_until = NULL, 
+                login_ips = array_append(COALESCE(login_ips, '{}'), %s) 
+            WHERE id = %s
+        """, (client_ip, user['id']))
+        conn.commit()
+
+        token = create_access_token(data={"user_id": user['id'], "role": "ADMIN"})
+        return {"access_token": token, "user_id": user['id']}
+        
+    finally:
+        cur.close(); conn.close()
+
+# =========================
+# 🕵️ SECURITY AUDIT API
+# =========================
+
+@app.get("/api/admin/security-logs")
+async def get_security_logs(admin_user=Depends(get_current_admin)):
+    conn = get_db()
+    cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+    try:
+        cur.execute("""
+            SELECT l.id, l.action_type, l.details, l.ip_address, l.created_at,
+                   u1.username as admin_name, u2.username as target_name
+            FROM security_logs l
+            LEFT JOIN users u1 ON l.admin_id = u1.id
+            LEFT JOIN users u2 ON l.target_user_id = u2.id
+            ORDER BY l.created_at DESC LIMIT 100
+        """)
+        logs = cur.fetchall()
+        return [{
+            "id": l["id"],
+            "admin_name": l["admin_name"] or "SYSTEM",
+            "target_name": l["target_name"] or "GLOBAL",
+            "action_type": l["action_type"],
+            "details": l["details"],
+            "ip_address": l["ip_address"],
+            "created_at": l["created_at"].isoformat()
+        } for l in logs]
+    finally:
+        cur.close(); conn.close()
 
 # =========================
 # 👥 USER MANAGEMENT API
@@ -193,58 +215,56 @@ async def admin_login(request: Request, background_tasks: BackgroundTasks):
 
 @app.get("/api/admin/users")
 async def get_all_users(admin_user=Depends(get_current_admin)):
-    conn = get_db()
-    cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+    conn = get_db(); cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
     try:
         cur.execute("SELECT id, username, email, status, user_type, created_at, login_ips FROM users ORDER BY created_at DESC")
         users = cur.fetchall()
         return [{
-            "id": u['id'],
-            "username": u['username'],
-            "email": u['email'],
-            "status": u['status'] or "ACTIVE",
-            "role": u['user_type'].capitalize() if u['user_type'] else "User", 
-            "joined": u['created_at'].strftime("%Y-%m-%d") if u['created_at'] else "N/A",
-            "ip_history": u['login_ips'] if u['login_ips'] else [] 
+            "id": u['id'], "username": u['username'], "email": u['email'],
+            "status": u['status'] or "ACTIVE", "role": u['user_type'],
+            "ip_history": u['login_ips'] or []
         } for u in users]
     finally:
         cur.close(); conn.close()
 
 @app.post("/api/admin/toggle-status/{user_id}")
-async def toggle_user_status(user_id: int, admin_user=Depends(get_current_admin)):
-    if int(user_id) == int(admin_user['user_id']):
-        raise HTTPException(status_code=400, detail="Self-deactivation restricted.")
+async def toggle_status(request: Request, user_id: int, admin_user=Depends(get_current_admin)):
+    x_forwarded = request.headers.get("X-Forwarded-For")
+    ip = x_forwarded.split(",")[0] if x_forwarded else request.client.host
 
     conn = get_db(); cur = conn.cursor()
     try:
-        cur.execute("SELECT status FROM users WHERE id=%s", (user_id,))
-        res = cur.fetchone()
-        new_status = "DEACTIVATED" if res[0] == "ACTIVE" else "ACTIVE"
+        cur.execute("SELECT username, status FROM users WHERE id=%s", (user_id,))
+        user = cur.fetchone()
+        new_status = "DEACTIVATED" if user[1] == "ACTIVE" else "ACTIVE"
+        
         cur.execute("UPDATE users SET status=%s WHERE id=%s", (new_status, user_id))
         conn.commit()
+
+        log_security_event(admin_user['user_id'], user_id, f"STATUS_{new_status}", f"Set {user[0]} to {new_status}", ip)
         return {"new_status": new_status}
     finally:
         cur.close(); conn.close()
 
 @app.post("/api/admin/change-role/{user_id}")
-async def change_user_role(user_id: int, data: dict = Body(...), admin_user=Depends(get_current_admin)):
-    admin_password = data.get("password")
-    new_role = str(data.get("new_role")).capitalize()
+async def change_role(request: Request, user_id: int, data: dict = Body(...), admin_user=Depends(get_current_admin)):
+    x_forwarded = request.headers.get("X-Forwarded-For")
+    ip = x_forwarded.split(",")[0] if x_forwarded else request.client.host
 
-    if int(user_id) == int(admin_user['user_id']):
-        raise HTTPException(status_code=400, detail="Self-demotion restricted.")
-
-    conn = get_db()
-    cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+    conn = get_db(); cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
     try:
         cur.execute("SELECT password FROM users WHERE id=%s", (admin_user['user_id'],))
-        admin_data = cur.fetchone()
+        admin_pass = cur.fetchone()[0]
         
-        if not admin_data or not verify_password(admin_password, admin_data['password']):
-            raise HTTPException(status_code=401, detail="Security challenge failed.")
+        if not verify_password(data.get("password"), admin_pass):
+            log_security_event(admin_user['user_id'], user_id, "AUTH_FAILURE", "Failed role change challenge", ip)
+            raise HTTPException(status_code=401, detail="Invalid admin password.")
 
+        new_role = data.get("new_role").upper()
         cur.execute("UPDATE users SET user_type=%s WHERE id=%s", (new_role, user_id))
         conn.commit()
-        return {"message": f"Clearance updated to {new_role}"}
+
+        log_security_event(admin_user['user_id'], user_id, f"ROLE_{new_role}", f"Promoted target to {new_role}", ip)
+        return {"message": "Success"}
     finally:
         cur.close(); conn.close()

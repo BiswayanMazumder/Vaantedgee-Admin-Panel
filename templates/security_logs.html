@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vantedge // Security Audit</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --neon-green: #00ffbb;
+            --bg-black: #020202;
+            --neon-red: #ef4444;
+            --neon-blue: #3b82f6;
+        }
+
+        body {
+            background-color: var(--bg-black);
+            color: white;
+            font-family: 'Space Grotesk', sans-serif;
+            overflow-x: hidden;
+            margin: 0;
+        }
+
+        /* --- Cyber Grid Background --- */
+        .grid-bg {
+            position: fixed;
+            inset: 0;
+            background-image: linear-gradient(rgba(0, 255, 187, 0.03) 1px, transparent 1px),
+                              linear-gradient(90deg, rgba(0, 255, 187, 0.03) 1px, transparent 1px);
+            background-size: 40px 40px;
+            z-index: -1;
+            pointer-events: none;
+        }
+
+        /* --- Glitch Header --- */
+        .glitch-text {
+            position: relative;
+            display: inline-block;
+            text-transform: uppercase;
+        }
+
+        .glitch-text:hover::before {
+            content: attr(data-text);
+            position: absolute;
+            left: -2px;
+            text-shadow: 2px 0 var(--neon-red);
+            background: var(--bg-black);
+            overflow: hidden;
+            animation: glitch-anim 0.3s infinite linear alternate-reverse;
+        }
+
+        @keyframes glitch-anim {
+            0% { clip-path: inset(10% 0 60% 0); }
+            100% { clip-path: inset(70% 0 5% 0); }
+        }
+
+        /* --- Kinetic Log Entries --- */
+        .log-row {
+            opacity: 0;
+            transform: translateX(-20px);
+            animation: slideIn 0.4s forwards cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            background: rgba(255, 255, 255, 0.01);
+            transition: all 0.3s;
+            border-left: 2px solid transparent;
+        }
+
+        .log-row:hover {
+            background: rgba(0, 255, 187, 0.04);
+            border-left: 2px solid var(--neon-green);
+            transform: scale(1.01) translateX(10px);
+        }
+
+        @keyframes slideIn { to { opacity: 1; transform: translateX(0); } }
+
+        /* --- Badge Styling --- */
+        .badge {
+            font-size: 9px;
+            font-weight: 900;
+            padding: 2px 10px;
+            border-radius: 4px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            display: inline-block;
+        }
+        .b-danger { color: var(--neon-red); border: 1px solid var(--neon-red); background: rgba(239, 68, 68, 0.1); }
+        .b-info { color: var(--neon-blue); border: 1px solid var(--neon-blue); background: rgba(59, 130, 246, 0.1); }
+        .b-success { color: var(--neon-green); border: 1px solid var(--neon-green); background: rgba(0, 255, 187, 0.1); }
+
+        /* --- Scanline Animation --- */
+        .scan-line {
+            position: fixed;
+            width: 100%;
+            height: 4px;
+            background: rgba(0, 255, 187, 0.05);
+            top: 0;
+            z-index: 1000;
+            pointer-events: none;
+            animation: scan 6s linear infinite;
+        }
+        @keyframes scan { 0% { top: 0%; } 100% { top: 100%; } }
+
+        /* --- Custom Scroll --- */
+        ::-webkit-scrollbar { width: 3px; }
+        ::-webkit-scrollbar-thumb { background: var(--neon-green); box-shadow: 0 0 10px var(--neon-green); }
+    </style>
+</head>
+
+<body class="p-6 md:p-12">
+    <div class="grid-bg"></div>
+    <div class="scan-line"></div>
+
+    <header class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-start md:items-end mb-16 gap-8">
+        <div>
+            <a href="/admin" class="group flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.4em] text-gray-500 hover:text-[#00ffbb] transition-all mb-4">
+                <span class="text-lg transition-transform group-hover:-translate-x-2">←</span> RETURN_TO_CORE
+            </a>
+            <h1 class="text-6xl font-black tracking-tighter glitch-text" data-text="SECURITY_AUDIT">
+                SECURITY_<span class="text-[#00ffbb] neon-text">AUDIT</span>
+            </h1>
+            <p class="text-[11px] text-gray-500 font-bold tracking-[0.5em] uppercase mt-2">Strategic_Intrusion_Logs // V2.4.0</p>
+        </div>
+
+        <div class="flex gap-12 border-l border-white/10 pl-12">
+            <div class="text-right">
+                <p class="text-[9px] text-gray-600 uppercase font-black tracking-widest">Threat_Level</p>
+                <p id="threat-status" class="text-2xl font-black text-[#00ffbb] animate-pulse">STABLE</p>
+            </div>
+            <div class="text-right">
+                <p class="text-[9px] text-gray-600 uppercase font-black tracking-widest">Active_Streams</p>
+                <p id="total-count" class="text-2xl font-black text-white">00</p>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto">
+        <div class="mb-10 flex flex-wrap gap-4 items-center">
+            <div class="relative w-full md:w-96">
+                <span class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-600 text-xs">🔍</span>
+                <input type="text" id="log-search" placeholder="FILTER_BY_OPERATIVE_OR_NODE..." 
+                    class="w-full bg-white/5 border border-white/10 rounded-2xl pl-12 pr-6 py-4 text-[11px] font-black text-white focus:border-[#00ffbb] focus:ring-1 focus:ring-[#00ffbb]/20 outline-none transition-all uppercase tracking-widest">
+            </div>
+            
+            <button onclick="fetchSecurityLogs()" class="ml-auto bg-white/5 border border-white/10 text-white text-[10px] font-black uppercase px-10 py-4 rounded-2xl hover:bg-[#00ffbb] hover:text-black transition-all hover:shadow-[0_0_30px_rgba(0,255,187,0.3)]">
+                REFRESH_SYNC
+            </button>
+        </div>
+
+        <div class="bg-[#050505]/60 border border-white/5 rounded-[2.5rem] overflow-hidden backdrop-blur-3xl shadow-2xl">
+            <div class="overflow-x-auto">
+                <table class="w-full text-left">
+                    <thead>
+                        <tr class="text-gray-600 text-[10px] uppercase tracking-[0.3em] font-black border-b border-white/5">
+                            <th class="p-8">Timeline</th>
+                            <th class="p-8">Initiator</th>
+                            <th class="p-8">Event_Vector</th>
+                            <th class="p-8">Strategic_Context</th>
+                            
+                        </tr>
+                    </thead>
+                    <tbody id="log-feed">
+                        </tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // --- UTILS: Next-Gen Time Formatter ---
+        function formatCyberTime(isoDate) {
+            const date = new Date(isoDate);
+            const now = new Date();
+            const diff = Math.floor((now - date) / 1000);
+
+            if (diff < 60) return 'NOW';
+            if (diff < 3600) return `${Math.floor(diff / 60)}M_AGO`;
+            if (diff < 86400) return `${Math.floor(diff / 3600)}H_AGO`;
+            return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }).toUpperCase();
+        }
+
+        // --- CORE: Data Fetching Logic ---
+        async function fetchSecurityLogs() {
+            const feed = document.getElementById('log-feed');
+            const token = localStorage.getItem('admin_token');
+            
+            // Initializing connection state UI
+            feed.innerHTML = `<tr><td colspan="5" class="p-32 text-center text-gray-700 animate-pulse font-black tracking-[1em] text-xs">UPLINKING_SECURE_DATA_STREAM...</td></tr>`;
+
+            try {
+                const response = await fetch('/api/admin/security-logs', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (!response.ok) throw new Error('UPLINK_TERMINATED');
+
+                const logs = await response.json();
+                feed.innerHTML = ''; // Clear stream
+                
+                document.getElementById('total-count').innerText = logs.length.toString().padStart(2, '0');
+
+                if (logs.length === 0) {
+                    feed.innerHTML = `<tr><td colspan="5" class="p-32 text-center text-gray-500 font-black tracking-widest text-xs">ARCHIVE_EMPTY // NO_EVENTS_DETECTED</td></tr>`;
+                    return;
+                }
+
+                logs.forEach((log, index) => {
+                    // Staggered cinematic entry
+                    setTimeout(() => {
+                        const row = document.createElement('tr');
+                        row.className = 'log-row border-b border-white/5 group';
+                        
+                        // Intelligent Badge Mapping
+                        let bClass = 'b-info';
+                        const action = log.action_type.toUpperCase();
+                        if (action.includes('DEACTIVATE') || action.includes('FAILURE')) bClass = 'b-danger';
+                        if (action.includes('PROMOTE') || action.includes('SUCCESS')) bClass = 'b-success';
+
+                        row.innerHTML = `
+                            <td class="p-8">
+                                <div class="flex flex-col">
+                                    <span class="text-xs font-black text-white">${formatCyberTime(log.created_at)}</span>
+                                    <span class="text-[9px] text-gray-600 font-mono tracking-tighter">HEX_${log.id.toString(16).toUpperCase()}</span>
+                                </div>
+                            </td>
+                            <td class="p-8">
+                                <span class="text-sm font-black text-[#00ffbb] tracking-tight hover:underline cursor-pointer">@${log.admin_name}</span>
+                            </td>
+                            <td class="p-8">
+                                <span class="badge ${bClass}">${log.action_type}</span>
+                            </td>
+                            <td class="p-8">
+                                <div class="flex flex-col gap-1">
+                                    <span class="text-[11px] font-bold text-gray-300">TARGET >> ${log.target_name}</span>
+                                    <span class="text-[9px] text-gray-600 font-medium tracking-wide italic opacity-70">${log.details}</span>
+                                </div>
+                            </td>
+                            
+                        `;
+                        feed.appendChild(row);
+                    }, index * 40); // Fast cinematic scroll
+                });
+
+            } catch (err) {
+                feed.innerHTML = `<tr><td colspan="5" class="p-32 text-center text-red-500 font-black tracking-widest text-xs">UPLINK_CRITICAL_FAILURE: ${err.message}</td></tr>`;
+                document.getElementById('threat-status').innerText = 'CRITICAL';
+                document.getElementById('threat-status').className = 'text-2xl font-black text-red-500 animate-pulse';
+            }
+        }
+
+        // --- Search Logic ---
+        document.getElementById('log-search').addEventListener('input', (e) => {
+            const term = e.target.value.toLowerCase();
+            const rows = document.querySelectorAll('.log-row');
+            rows.forEach(row => {
+                const visible = row.innerText.toLowerCase().includes(term);
+                row.style.display = visible ? 'table-row' : 'none';
+            });
+        });
+
+        // --- Initialization ---
+        window.onload = () => {
+            if (!localStorage.getItem('admin_token')) {
+                window.location.href = '/'; 
+                return;
+            }
+            fetchSecurityLogs();
+            
+            // Background periodic sync
+            setInterval(fetchSecurityLogs, 60000); // Sync every minute
+        };
+    </script>
+</body>
+</html>
