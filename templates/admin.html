@@ -235,7 +235,7 @@
                 </tr>
             `;
             tbody.innerHTML = skeletonHTML.repeat(4);
-
+            
             try {
                 const res = await fetch('/api/admin/users', { headers: { 'Authorization': `Bearer ${token}` } });
                 if (res.status === 401 || res.status === 403) { terminateSession(); return; }
@@ -246,6 +246,12 @@
                 users.forEach((u, i) => {
                     const row = document.createElement('tr');
                     const isMe = u.id == myId;
+                    
+                    // --- IP LOGIC ---
+                    const latestIp = u.ip_history && u.ip_history.length > 0 ? u.ip_history[u.ip_history.length - 1] : "---";
+                    const ipCount = u.ip_history ? u.ip_history.length : 0;
+                    const ipTooltip = u.ip_history ? u.ip_history.slice(-5).reverse().join('\\n') : "No data";
+
                     row.className = "border-b border-white/5 hover:bg-white/[0.02] transition-colors loaded-row";
                     row.style.animationDelay = `${i * 0.05}s`;
 
@@ -253,11 +259,9 @@
                         ? `<span class="status-pill role-admin">ADMIN_LVL_5</span>` 
                         : `<span class="status-pill role-user">OPERATIVE_LVL_1</span>`;
 
-                    // MASTER ROOT PROTECTION: Cannot demote self
                     const roleAction = isMe ? `<span class="text-[9px] text-[#00ffbb] font-black tracking-widest opacity-60">MASTER_ROOT_PROTECTED</span>` : 
                         `<button onclick="requestRoleChange(${u.id}, '${u.username}', '${u.role}')" class="text-[9px] font-black uppercase hover:underline ${u.role === 'Admin' ? 'text-red-400' : 'text-blue-400'}">${u.role === 'Admin' ? 'Demote_User' : 'Promote_Admin'}</button>`;
 
-                    // SESSION PROTECTION: Cannot deactivate self
                     const statusAction = isMe ? `<span class="text-[9px] text-gray-600 font-bold tracking-widest">SESSION_LOCKED</span>` :
                         `<button onclick="confirmToggle(${u.id}, '${u.username}', '${u.status}')" class="px-5 py-2 rounded-lg text-[9px] font-black border transition-all ${u.status === 'ACTIVE' ? 'border-red-500/30 text-red-500 hover:bg-red-500 hover:text-black' : 'border-[#00ffbb]/30 text-[#00ffbb] hover:bg-[#00ffbb] hover:text-black'}">${u.status === 'ACTIVE' ? 'DEACTIVATE' : 'ACTIVATE'}</button>`;
 
@@ -266,6 +270,11 @@
                             <div class="flex flex-col">
                                 <span class="font-bold text-lg ${isMe ? 'text-[#00ffbb]' : 'text-white'}">${u.username} ${isMe ? '<span class="text-[10px] ml-2 text-gray-500">[YOU]</span>' : ''}</span>
                                 <span class="text-[10px] text-gray-500 font-bold uppercase tracking-tighter">${u.email}</span>
+                                <div class="mt-2 flex items-center gap-2 group/ip relative cursor-help w-fit">
+                                    <span class="text-[9px] text-gray-400 bg-white/5 px-2 py-0.5 rounded border border-white/5">📡 ${latestIp}</span>
+                                    ${ipCount > 1 ? `<span class="text-[8px] text-[#00ffbb] font-black">+${ipCount - 1}</span>` : ''}
+                                    <div class="hidden group-hover/ip:block absolute left-0 top-6 bg-black border border-white/10 p-2 rounded z-50 text-[8px] whitespace-pre shadow-2xl text-gray-300">HISTORY:\\n${ipTooltip}</div>
+                                </div>
                             </div>
                         </td>
                         <td class="p-8 text-center"><div class="flex flex-col items-center gap-2">${roleDisplay}${roleAction}</div></td>
@@ -298,9 +307,18 @@
             const token = localStorage.getItem('admin_token');
             closeModal('confirm-modal');
             try {
-                const res = await fetch(`/api/admin/toggle-status/${currentUserId}`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } });
-                if (res.ok) { loadUsers(); showToast("SUCCESS", "Status updated successfully.", false); }
-                else { const d = await res.json(); showToast("OVERRIDE_REFUSED", d.detail); }
+                const res = await fetch(`/api/admin/toggle-status/${currentUserId}`, { 
+                    method: 'POST', 
+                    headers: { 'Authorization': `Bearer ${token}` } 
+                });
+                if (res.ok) { 
+                    loadUsers(); 
+                    showToast("SUCCESS", "Status updated successfully.", false); 
+                }
+                else { 
+                    const d = await res.json(); 
+                    showToast("OVERRIDE_REFUSED", d.detail); 
+                }
             } catch (err) { showToast("ERROR", "Uplink interrupted."); }
         }
 
@@ -317,12 +335,18 @@
                     body: JSON.stringify({ password: pass, new_role: pendingRoleChange.next })
                 });
                 const d = await res.json();
-                if (res.ok) { loadUsers(); showToast("SUCCESS", d.message, false); }
-                else { showToast("AUTH_FAILURE", d.detail); }
+                if (res.ok) { 
+                    loadUsers(); 
+                    showToast("SUCCESS", d.message, false); 
+                }
+                else { 
+                    showToast("AUTH_FAILURE", d.detail); 
+                }
             } catch (err) { showToast("ERROR", "Security protocol breach."); }
         }
 
         loadUsers();
     </script>
 </body>
+
 </html>
