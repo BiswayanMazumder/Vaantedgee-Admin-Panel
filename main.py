@@ -49,7 +49,20 @@ def get_db():
         print("DB CONNECTION ERROR:", e)
         raise HTTPException(status_code=500, detail="Database connection failed")
 
-def log_security_event(admin_id: int, target_id: Optional[int], action: str, details: str, ip: str):
+def get_lockdown_status():
+    """Checks the global kill-switch state in the system_config table."""
+    conn = get_db()
+    cur = conn.cursor()
+    try:
+        cur.execute("SELECT is_lockdown_active FROM system_config LIMIT 1")
+        res = cur.fetchone()
+        return res[0] if res else False
+    except Exception:
+        return False
+    finally:
+        cur.close(); conn.close()
+
+def log_security_event(admin_id: Optional[int], target_id: Optional[int], action: str, details: str, ip: str):
     """System Audit Recorder: Writes to security_logs table."""
     conn = get_db()
     cur = conn.cursor()
@@ -132,6 +145,9 @@ async def security_logs_page(request: Request):
 
 @app.post("/api/admin/login")
 async def admin_login(request: Request, background_tasks: BackgroundTasks):
+    if get_lockdown_status():
+        raise HTTPException(status_code=503, detail="SYSTEM_PROTOCOL_OMEGA: Access nodes sealed.")
+
     data = await request.json()
     email, password = data.get("email"), data.get("password")
     
@@ -160,7 +176,6 @@ async def admin_login(request: Request, background_tasks: BackgroundTasks):
         if str(user['user_type']).upper() != "ADMIN":
             raise HTTPException(status_code=403, detail="Admin role required.")
 
-        # IP Detection & Alert
         ip_history = user['login_ips'] or []
         if client_ip not in ip_history:
             background_tasks.add_task(send_security_alert, user['email'], user['username'], client_ip)
@@ -175,13 +190,16 @@ async def admin_login(request: Request, background_tasks: BackgroundTasks):
 
         token = create_access_token(data={"user_id": user['id'], "role": "ADMIN"})
         return {"access_token": token, "user_id": user['id']}
-        
     finally:
         cur.close(); conn.close()
 
 # =========================
 # 🕵️ SECURITY AUDIT API
 # =========================
+
+@app.get("/api/admin/system/status")
+async def get_system_status(admin_user=Depends(get_current_admin)):
+    return {"is_lockdown_active": get_lockdown_status()}
 
 @app.get("/api/admin/security-logs")
 async def get_security_logs(admin_user=Depends(get_current_admin)):
@@ -206,6 +224,40 @@ async def get_security_logs(admin_user=Depends(get_current_admin)):
             "ip_address": l["ip_address"],
             "created_at": l["created_at"].isoformat()
         } for l in logs]
+    finally:
+        cur.close(); conn.close()
+
+# =========================
+# 🚨 SYSTEM CONTROL (KILL SWITCH)
+# =========================
+
+@app.post("/api/admin/system/lockdown")
+async def toggle_lockdown(request: Request, data: dict = Body(...), admin_user=Depends(get_current_admin)):
+    password = data.get("password")
+    x_forwarded = request.headers.get("X-Forwarded-For")
+    ip = x_forwarded.split(",")[0] if x_forwarded else request.client.host
+
+    conn = get_db()
+    cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+    try:
+        cur.execute("SELECT password FROM users WHERE id=%s", (admin_user['user_id'],))
+        admin_data = cur.fetchone()
+        
+        if not admin_data or not verify_password(password, admin_data['password']):
+            log_security_event(admin_user['user_id'], None, "LOCKDOWN_FAILURE", "Unauthorized lockdown attempt.", ip)
+            raise HTTPException(status_code=401, detail="Authentication failed.")
+
+        cur.execute("SELECT is_lockdown_active FROM system_config LIMIT 1")
+        current_state = cur.fetchone()[0]
+        new_state = not current_state
+        
+        cur.execute("UPDATE system_config SET is_lockdown_active = %s, lockdown_initiated_by = %s, updated_at = NOW() WHERE id = 1", (new_state, admin_user['user_id']))
+        conn.commit()
+
+        action = "PROTOCOL_OMEGA_ACTIVE" if new_state else "PROTOCOL_OMEGA_LIFTED"
+        log_security_event(admin_user['user_id'], None, action, f"Global lockdown toggled to {new_state}", ip)
+
+        return {"is_lockdown_active": new_state}
     finally:
         cur.close(); conn.close()
 
@@ -235,13 +287,13 @@ async def toggle_status(request: Request, user_id: int, admin_user=Depends(get_c
     conn = get_db(); cur = conn.cursor()
     try:
         cur.execute("SELECT username, status FROM users WHERE id=%s", (user_id,))
-        user = cur.fetchone()
-        new_status = "DEACTIVATED" if user[1] == "ACTIVE" else "ACTIVE"
+        user_res = cur.fetchone()
+        new_status = "DEACTIVATED" if user_res[1] == "ACTIVE" else "ACTIVE"
         
         cur.execute("UPDATE users SET status=%s WHERE id=%s", (new_status, user_id))
         conn.commit()
 
-        log_security_event(admin_user['user_id'], user_id, f"STATUS_{new_status}", f"Set {user[0]} to {new_status}", ip)
+        log_security_event(admin_user['user_id'], user_id, f"STATUS_{new_status}", f"Set {user_res[0]} to {new_status}", ip)
         return {"new_status": new_status}
     finally:
         cur.close(); conn.close()
