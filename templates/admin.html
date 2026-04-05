@@ -122,6 +122,52 @@
 
         .exit-sequence { animation: exitFlash 0.5s forwards; }
         @keyframes exitFlash { 50% { filter: brightness(4) blur(10px); } 100% { filter: brightness(0); opacity: 0; } }
+
+        /* --- HIGH VISIBILITY INTEL TOOLTIP --- */
+        .intel-tooltip {
+            display: none;
+            position: absolute;
+            left: 0;
+            top: 2.2rem;
+            width: 240px;
+            background: #000000 !important; /* Solid black to prevent content bleed */
+            border: 1px solid var(--neon-green);
+            border-radius: 8px;
+            padding: 14px;
+            z-index: 99999 !important; /* Forces tooltip above all other rows */
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 1), 0 0 20px rgba(0, 255, 187, 0.3);
+            pointer-events: none;
+        }
+
+        .group\/ip:hover .intel-tooltip {
+            display: block !important;
+            animation: intelReveal 0.25s ease-out forwards;
+        }
+
+        @keyframes intelReveal {
+            from { opacity: 0; transform: translateY(5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .intel-line {
+            font-size: 11px;
+            font-family: 'Space Grotesk', monospace;
+            color: #ffffff;
+            margin-bottom: 6px;
+            display: flex;
+            justify-content: space-between;
+            border-bottom: 1px solid rgba(0, 255, 187, 0.2);
+            padding-bottom: 4px;
+        }
+
+        .intel-tooltip::after {
+            content: "";
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: linear-gradient(rgba(0, 255, 187, 0.03) 1px, transparent 1px);
+            background-size: 100% 3px;
+            pointer-events: none;
+        }
     </style>
 </head>
 
@@ -197,6 +243,26 @@
     <script>
         let currentUserId = null;
         let pendingRoleChange = { id: null, next: null };
+        let inactivityTimer;
+
+        // --- 🕒 SESSION MANAGEMENT ---
+        function resetInactivityTimer() {
+            clearTimeout(inactivityTimer);
+            inactivityTimer = setTimeout(() => {
+                alert("SESSION_EXPIRED: Automatic lockout triggered due to inactivity.");
+                terminateSession();
+            }, 900000);
+        }
+
+        window.onload = () => {
+            const token = localStorage.getItem('admin_token');
+            if (!token) { window.location.href = '/'; return; }
+            loadUsers();
+            resetInactivityTimer();
+            document.onmousemove = resetInactivityTimer;
+            document.onkeydown = resetInactivityTimer;
+            document.onclick = resetInactivityTimer;
+        };
 
         function showToast(title, msg, isError = true) {
             const container = document.getElementById('notification-container');
@@ -216,64 +282,77 @@
 
         document.addEventListener('keydown', (e) => { if (e.key === 'Escape') terminateSession(); });
 
+        // --- 🔍 DATA UPLINK ---
         async function loadUsers() {
             const tbody = document.getElementById('user-table-body');
             const token = localStorage.getItem('admin_token');
             const myId = localStorage.getItem('admin_id');
-            if (!token) { window.location.href = '/'; return; }
+            
+            if (!token) return;
 
-            // --- FUTURISTIC SKELETON LOAD ---
-            const skeletonHTML = `
+            // Skeleton loading state
+            tbody.innerHTML = `
                 <tr class="skeleton-row border-b border-white/5">
-                    <td class="p-8">
-                        <div class="skeleton-bar sk-text"></div>
-                        <div class="skeleton-bar sk-text-sm"></div>
-                    </td>
+                    <td class="p-8"><div class="skeleton-bar sk-text"></div><div class="skeleton-bar sk-text-sm"></div></td>
                     <td class="p-8"><div class="skeleton-bar sk-pill mx-auto"></div></td>
                     <td class="p-8"><div class="skeleton-bar sk-pill mx-auto"></div></td>
                     <td class="p-8"><div class="skeleton-bar sk-pill ml-auto" style="width:100px"></div></td>
                 </tr>
-            `;
-            tbody.innerHTML = skeletonHTML.repeat(4);
+            `.repeat(4);
             
             try {
                 const res = await fetch('/api/admin/users', { headers: { 'Authorization': `Bearer ${token}` } });
                 if (res.status === 401 || res.status === 403) { terminateSession(); return; }
+
                 const users = await res.json();
                 document.getElementById('user-count').innerText = users.length;
                 tbody.innerHTML = '';
 
                 users.forEach((u, i) => {
-                    const row = document.createElement('tr');
                     const isMe = u.id == myId;
                     
-                    // --- IP LOGIC ---
-                    const latestIp = u.ip_history && u.ip_history.length > 0 ? u.ip_history[u.ip_history.length - 1] : "---";
-                    const ipCount = u.ip_history ? u.ip_history.length : 0;
-                    const ipTooltip = u.ip_history ? u.ip_history.slice(-5).reverse().join('\\n') : "No data";
+                    // Filter duplicate IPs
+                    const uniqueIps = [...new Set(u.ip_history || [])];
+                    const latestIp = uniqueIps.length > 0 ? uniqueIps[uniqueIps.length - 1] : "---";
+                    const ipCount = uniqueIps.length;
+                    
+                    const ipListHTML = uniqueIps.slice(-5).reverse().map((ip, idx) => `
+                        <div class="intel-line">
+                            <span style="color: var(--neon-green); opacity: 0.8; font-weight: 700;">NODE_0${ipCount - idx}</span>
+                            <span style="color: #ffffff; font-weight: 900; letter-spacing: 0.5px;">${ip}</span>
+                        </div>
+                    `).join('');
 
+                    const row = document.createElement('tr');
                     row.className = "border-b border-white/5 hover:bg-white/[0.02] transition-colors loaded-row";
                     row.style.animationDelay = `${i * 0.05}s`;
 
-                    const roleDisplay = u.role === 'Admin' 
-                        ? `<span class="status-pill role-admin">ADMIN_LVL_5</span>` 
-                        : `<span class="status-pill role-user">OPERATIVE_LVL_1</span>`;
-
+                    const roleDisplay = u.role === 'Admin' ? `<span class="status-pill role-admin">ADMIN_LVL_5</span>` : `<span class="status-pill role-user">OPERATIVE_LVL_1</span>`;
+                    
                     const roleAction = isMe ? `<span class="text-[9px] text-[#00ffbb] font-black tracking-widest opacity-60">MASTER_ROOT_PROTECTED</span>` : 
                         `<button onclick="requestRoleChange(${u.id}, '${u.username}', '${u.role}')" class="text-[9px] font-black uppercase hover:underline ${u.role === 'Admin' ? 'text-red-400' : 'text-blue-400'}">${u.role === 'Admin' ? 'Demote_User' : 'Promote_Admin'}</button>`;
 
-                    const statusAction = isMe ? `<span class="text-[9px] text-gray-600 font-bold tracking-widest">SESSION_LOCKED</span>` :
+                    const statusAction = isMe ? `<span class="text-[9px] text-gray-600 font-bold uppercase tracking-widest">Session_Locked</span>` : 
                         `<button onclick="confirmToggle(${u.id}, '${u.username}', '${u.status}')" class="px-5 py-2 rounded-lg text-[9px] font-black border transition-all ${u.status === 'ACTIVE' ? 'border-red-500/30 text-red-500 hover:bg-red-500 hover:text-black' : 'border-[#00ffbb]/30 text-[#00ffbb] hover:bg-[#00ffbb] hover:text-black'}">${u.status === 'ACTIVE' ? 'DEACTIVATE' : 'ACTIVATE'}</button>`;
 
                     row.innerHTML = `
                         <td class="p-8">
                             <div class="flex flex-col">
                                 <span class="font-bold text-lg ${isMe ? 'text-[#00ffbb]' : 'text-white'}">${u.username} ${isMe ? '<span class="text-[10px] ml-2 text-gray-500">[YOU]</span>' : ''}</span>
-                                <span class="text-[10px] text-gray-500 font-bold uppercase tracking-tighter">${u.email}</span>
-                                <div class="mt-2 flex items-center gap-2 group/ip relative cursor-help w-fit">
-                                    <span class="text-[9px] text-gray-400 bg-white/5 px-2 py-0.5 rounded border border-white/5">📡 ${latestIp}</span>
+                                <span class="text-[10px] text-gray-500 uppercase tracking-tighter">${u.email}</span>
+                                
+                                <div class="mt-2 flex items-center gap-2 group/ip relative cursor-help w-fit" style="z-index: 10;">
+                                    <span class="text-[10px] text-white bg-white/10 px-2 py-0.5 rounded border border-white/10 font-bold">📡 ${latestIp}</span>
                                     ${ipCount > 1 ? `<span class="text-[8px] text-[#00ffbb] font-black">+${ipCount - 1}</span>` : ''}
-                                    <div class="hidden group-hover/ip:block absolute left-0 top-6 bg-black border border-white/10 p-2 rounded z-50 text-[8px] whitespace-pre shadow-2xl text-gray-300">HISTORY:\\n${ipTooltip}</div>
+                                    
+                                    <div class="intel-tooltip">
+                                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; border-bottom: 1px solid #333; padding-bottom: 5px;">
+                                            <span style="font-size: 9px; color: var(--neon-green); font-weight: 900; letter-spacing: 1px;">STREAM_SOURCE</span>
+                                            <span style="font-size: 8px; color: #555;">IP_INTEL</span>
+                                        </div>
+                                        ${ipListHTML || '<div style="color:#444; font-size:10px; text-align:center;">NULL_DATA_STREAMS</div>'}
+                                        <div style="margin-top: 10px; font-size: 7px; color: #333; text-align: center; letter-spacing: 1px;">AUTHENTICATED_ACCESS_ONLY</div>
+                                    </div>
                                 </div>
                             </div>
                         </td>
@@ -285,6 +364,9 @@
                 });
             } catch (err) { showToast("UPLINK_FAILURE", "Mainframe is currently unreachable."); }
         }
+
+        // --- 🛠 SYSTEM ACTIONS ---
+        function closeModal(m) { document.getElementById(m).style.display = 'none'; }
 
         function confirmToggle(id, name, status) {
             currentUserId = id;
@@ -301,8 +383,6 @@
             document.getElementById('security-confirm-btn').onclick = executeRoleChange;
         }
 
-        function closeModal(m) { document.getElementById(m).style.display = 'none'; }
-
         async function executeToggle() {
             const token = localStorage.getItem('admin_token');
             closeModal('confirm-modal');
@@ -314,10 +394,9 @@
                 if (res.ok) { 
                     loadUsers(); 
                     showToast("SUCCESS", "Status updated successfully.", false); 
-                }
-                else { 
-                    const d = await res.json(); 
-                    showToast("OVERRIDE_REFUSED", d.detail); 
+                } else {
+                    const d = await res.json();
+                    showToast("OVERRIDE_REFUSED", d.detail);
                 }
             } catch (err) { showToast("ERROR", "Uplink interrupted."); }
         }
@@ -338,14 +417,11 @@
                 if (res.ok) { 
                     loadUsers(); 
                     showToast("SUCCESS", d.message, false); 
-                }
-                else { 
-                    showToast("AUTH_FAILURE", d.detail); 
+                } else {
+                    showToast("AUTH_FAILURE", d.detail);
                 }
             } catch (err) { showToast("ERROR", "Security protocol breach."); }
         }
-
-        loadUsers();
     </script>
 </body>
 
