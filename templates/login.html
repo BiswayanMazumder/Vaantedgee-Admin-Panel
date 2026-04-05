@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VANTEDGE ADMIN CORE // SECURE UPLINK</title>
+    <style>
+        :root {
+            --bg-dark: #000000;
+            --bg-card: rgba(255, 255, 255, 0.02);
+            --primary: #00ffbb; /* Cyber Neon Green */
+            --accent: #3b82f6; /* Electric Blue */
+            --text-main: #ffffff;
+            --text-muted: #888888;
+            --font-main: 'Segoe UI', 'SF Pro Display', Roboto, sans-serif;
+            --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; outline: none; }
+
+        body {
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            font-family: var(--font-main);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* =========================
+           ✨ BACKGROUND ANIMATIONS
+           ========================= */
+        /* Dynamic Grid Background */
+        body::before {
+            content: '';
+            position: absolute;
+            width: 200%; height: 200%;
+            top: -50%; left: -50%;
+            background-image: 
+                linear-gradient(rgba(0, 255, 187, 0.05) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 255, 187, 0.05) 1px, transparent 1px);
+            background-size: 50px 50px;
+            transform: rotate(-15deg);
+            z-index: -2;
+            animation: gridMove 20s linear infinite;
+        }
+
+        /* Pulsing Radial Gradients */
+        .bg-glow {
+            position: absolute;
+            width: 100vw; height: 100vh;
+            z-index: -1;
+            opacity: 0.6;
+        }
+
+        .bg-glow::before {
+            content: '';
+            position: absolute;
+            width: 400px; height: 400px;
+            background: radial-gradient(circle, rgba(0, 255, 187, 0.2), transparent 70%);
+            top: 10%; left: 10%;
+            animation: pulseGlow 10s infinite alternate var(--ease-in-out);
+        }
+
+        .bg-glow::after {
+            content: '';
+            position: absolute;
+            width: 600px; height: 600px;
+            background: radial-gradient(circle, rgba(59, 130, 246, 0.15), transparent 70%);
+            bottom: -10%; right: -10%;
+            animation: pulseGlow 15s infinite alternate-reverse var(--ease-in-out);
+        }
+
+        @keyframes gridMove {
+            0% { background-position: 0 0; }
+            100% { background-position: 100px 100px; }
+        }
+
+        @keyframes pulseGlow {
+            0% { transform: scale(1) translate(0, 0); opacity: 0.4; }
+            100% { transform: scale(1.3) translate(50px, -30px); opacity: 0.8; }
+        }
+
+        /* =========================
+           🛡️ MAIN CARD DESIGN
+           ========================= */
+        .login-card {
+            background: var(--bg-card);
+            backdrop-filter: blur(25px) saturate(180%);
+            -webkit-backdrop-filter: blur(25px) saturate(180%);
+            width: 420px;
+            padding: 50px;
+            border-radius: 24px;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.3);
+            position: relative;
+            transform: translateY(20px);
+            opacity: 0;
+            animation: cardSlideIn 0.8s forwards var(--ease-in-out);
+        }
+
+        /* Futuristic Corner Effects (Gen Z style clip-paths) */
+        .login-card::before, .login-card::after {
+            content: '';
+            position: absolute;
+            width: 30px; height: 30px;
+            border: 2px solid var(--primary);
+            z-index: 1;
+        }
+
+        .login-card::before {
+            top: 20px; left: 20px;
+            border-right: none; border-bottom: none;
+            border-radius: 8px 0 0 0;
+            animation: cornerPulse 4s infinite alternate;
+        }
+
+        .login-card::after {
+            bottom: 20px; right: 20px;
+            border-left: none; border-top: none;
+            border-radius: 0 0 8px 0;
+            animation: cornerPulse 4s infinite alternate-reverse;
+        }
+
+        @keyframes cardSlideIn {
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        @keyframes cornerPulse {
+            0%, 100% { opacity: 0.2; transform: scale(1); }
+            50% { opacity: 1; transform: scale(1.05); }
+        }
+
+        /* =========================
+           ✍️ TYPOGRAPHY & HEADER
+           ========================= */
+        .header { text-align: center; margin-bottom: 40px; }
+
+        .brand-logo {
+            font-size: 26px;
+            font-weight: 900;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            background: linear-gradient(135deg, var(--primary), var(--accent));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 5px;
+            position: relative;
+            display: inline-block;
+        }
+
+        /* Glitch effect on hover (Gen Z loves reactivity) */
+        .brand-logo:hover::before {
+            content: attr(data-text);
+            position: absolute; top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: var(--bg-dark);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background: linear-gradient(135deg, #ff0055, #00ffbb);
+            opacity: 0.8;
+            clip-path: polygon(0 0, 100% 0, 100% 30%, 0 30%);
+            animation: glitch 0.3s infinite;
+        }
+
+        .subtitle {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 4px;
+            color: var(--text-muted);
+            animation: typing 2.5s steps(30, end) infinite;
+        }
+
+        @keyframes glitch {
+            0% { transform: translate(2px, -2px); }
+            50% { transform: translate(-2px, 2px); }
+            100% { transform: translate(1px, 1px); }
+        }
+
+        /* =========================
+           📥 FORM & INPUTS
+           ========================= */
+        .input-group { position: relative; margin-bottom: 25px; }
+
+        .input-group label {
+            position: absolute;
+            left: 20px; top: 18px;
+            color: var(--text-muted);
+            font-size: 13px;
+            pointer-events: none;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .input-group input {
+            width: 100%;
+            padding: 20px;
+            font-size: 14px;
+            color: var(--text-main);
+            background: rgba(255, 255, 255, 0.01);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            transition: all 0.3s ease;
+        }
+
+        /* Active/Focus states: Cyber Glow */
+        .input-group input:focus,
+        .input-group input:not(:placeholder-shown) {
+            border-color: rgba(0, 255, 187, 0.4);
+            background: rgba(0, 255, 187, 0.01);
+            box-shadow: 0 0 15px rgba(0, 255, 187, 0.1);
+        }
+
+        /* Label animation on focus */
+        .input-group input:focus + label,
+        .input-group input:not(:placeholder-shown) + label {
+            top: -10px; left: 15px;
+            font-size: 10px;
+            color: var(--primary);
+            background-color: #0d0d0d; /* Subtle background for label */
+            padding: 0 5px;
+            border-radius: 4px;
+        }
+
+        /* =========================
+           🚀 BUTTON & FEEDBACK
+           ========================= */
+        .login-btn {
+            width: 100%;
+            padding: 16px;
+            border: none;
+            border-radius: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            font-size: 13px;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+            background: linear-gradient(135deg, var(--accent), var(--primary));
+            color: #000;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        /* Hover effect: Scale and shadow */
+        .login-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 255, 187, 0.3);
+        }
+
+        .login-btn:active { transform: translateY(1px); }
+
+        /* Button Shine Animation */
+        .login-btn::after {
+            content: '';
+            position: absolute;
+            top: -50%; left: -100%;
+            width: 100%; height: 200%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+            transform: rotate(25deg);
+            transition: all 0.5s ease;
+        }
+
+        .login-btn:hover::after { left: 100%; }
+
+        /* Error Message (Hidden by default) */
+        #error-msg {
+            color: #ef4444; /* Bright Red */
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.2);
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 12px;
+            text-align: center;
+            margin-bottom: 20px;
+            display: none;
+            animation: shake 0.4s;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            20%, 60% { transform: translateX(-5px); }
+            40%, 80% { transform: translateX(5px); }
+        }
+
+        /* =========================
+           📡 LINK STATUS FOOTER
+           ========================= */
+        .status-footer {
+            margin-top: 30px;
+            text-align: center;
+            font-size: 10px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .status-dot {
+            height: 6px; width: 6px;
+            background-color: var(--primary);
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 5px;
+            animation: statusPulse 1.5s infinite;
+        }
+
+        @keyframes statusPulse {
+            0% { box-shadow: 0 0 0 0 rgba(0, 255, 187, 0.7); }
+            70% { box-shadow: 0 0 0 6px rgba(0, 255, 187, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(0, 255, 187, 0); }
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="bg-glow"></div>
+
+    <div class="login-card">
+        <div class="header">
+            <h1 class="brand-logo" data-text="VANTEDGE.">VANTEDGE.</h1>
+            <p class="subtitle">// CORE ADMIN UPLINK</p>
+        </div>
+
+        <div id="error-msg"></div>
+
+        <form id="loginForm">
+            <div class="input-group">
+                <input type="email" id="email" required placeholder=" ">
+                <label for="email">Admin Email</label>
+            </div>
+            
+            <div class="input-group">
+                <input type="password" id="password" required placeholder=" ">
+                <label for="password">Security Protocol</label>
+            </div>
+
+            <button type="submit" class="login-btn">Initialize Session →</button>
+        </form>
+
+        <div class="status-footer">
+            <span class="status-dot"></span> Secure Connection Active // Port 8000
+        </div>
+    </div>
+
+    <script>
+        
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const errorMsg = document.getElementById('error-msg');
+            const submitBtn = document.querySelector('.login-btn');
+
+            // Reset UI State
+            errorMsg.style.display = 'none';
+            submitBtn.textContent = 'Verifying...';
+            submitBtn.style.opacity = '0.7';
+
+            try {
+                // Call the FastAPI endpoint we set up in main.py
+                const response = await fetch('/api/admin/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    // 1. Success Animation
+                    submitBtn.textContent = 'Uplink Established ✔️';
+                    submitBtn.style.background = 'linear-gradient(135deg, #00ffbb, #ffffff)';
+                    
+                    // 2. Save Token (Modern Gen-Z frontend apps handle tokens this way)
+                    localStorage.setItem('admin_token', data.access_token);
+                    localStorage.setItem('admin_id', data.user_id); // Store the user's ID
+                    // 3. Futuristic delay before redirect
+                    setTimeout(() => {
+                        window.location.href = '/admin';
+                    }, 1200);
+
+                } else {
+                    // 4. Handle Error Cases (401, 403, etc.)
+                    throw new Error(data.detail || 'Authentication failed.');
+                }
+
+            } catch (error) {
+                // 5. Error Feedback
+                errorMsg.textContent = error.message;
+                errorMsg.style.display = 'block';
+                
+                // Reset button state
+                submitBtn.textContent = 'Initialize Session →';
+                submitBtn.style.opacity = '1';
+                submitBtn.style.background = 'linear-gradient(135deg, #3b82f6, #00ffbb)';
+            }
+        });
+    </script>
+</body>
+</html>
