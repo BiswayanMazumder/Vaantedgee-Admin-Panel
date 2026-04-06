@@ -490,4 +490,4 @@ async def node_stream(request: Request, token: str = None):
 
 @app.get("/admin/network_nodes")
 async def nodes_page(request: Request):
-    return templates.TemplateResponse("network_nodes.html", {"request": request})
+    return templates.TemplateResponse(request=request, name="network_nodes.html")
