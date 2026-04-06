@@ -3,6 +3,10 @@ import time
 import bcrypt
 import psycopg2
 import psycopg2.extras
+import json
+import asyncio
+import psutil
+from fastapi.responses import StreamingResponse
 import requests
 from datetime import datetime, timedelta
 from typing import Optional, List
@@ -47,6 +51,9 @@ MASTER_BYPASS_EMAIL = os.getenv("Master_Bypass_Email")
 VERCEL_AUTH_TOKEN = os.getenv("Vercel_API")
 VERCEL_PROJECT_ID = "prj_mjzYPpl60vqmYVflhKASgYcTASSk"
 
+# Global History for AI Heuristics
+node_history = {"DB_PRIMARY": [], "EDGE_GATEWAY": [], "VANTEDGE_OS": []}
+
 # =========================
 # 🛠️ HELPERS & SECURITY
 # =========================
@@ -54,6 +61,7 @@ VERCEL_PROJECT_ID = "prj_mjzYPpl60vqmYVflhKASgYcTASSk"
 async def render_health_page(request: Request):
     """Renders the futuristic monitoring UI."""
     return templates.TemplateResponse(request=request, name="intel_core.html")
+
 def get_db():
     try:
         return psycopg2.connect(DATABASE_URL)
@@ -340,24 +348,13 @@ async def change_role(request: Request, user_id: int, data: dict = Body(...), ad
         return {"message": "Success"}
     finally:
         cur.close(); conn.close()
-# --- AUTH HELPER ---
-async def get_current_admin(token: str = Depends(oauth2_scheme)):
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        if str(payload.get("role")).upper() != "ADMIN":
-            raise HTTPException(status_code=403, detail="Unauthorized")
-        return payload
-    except JWTError:
-        raise HTTPException(status_code=401, detail="Session expired")
-
-# --- VERCEL DATA ENDPOINTS ---
 
 # =========================
-# 🧾 LOGGING (ADDED ONLY)
+# 🧾 LOGGING & MONITORING
 # =========================
 def store_log(method, path, status, message):
     try:
-        conn = psycopg2.connect(DATABASE_URL)
+        conn = get_db()
         cur = conn.cursor()
         cur.execute("""
             CREATE TABLE IF NOT EXISTS runtime_logs (
@@ -377,6 +374,7 @@ def store_log(method, path, status, message):
         cur.close(); conn.close()
     except Exception as e:
         print("LOG STORE ERROR:", e)
+
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
     start = time.time()
@@ -384,14 +382,13 @@ async def log_requests(request: Request, call_next):
     duration = round((time.time() - start) * 1000, 2)
     store_log(request.method, request.url.path, response.status_code, f"{request.url.path} {duration}ms")
     return response
+
 @app.get("/api/system/vercel-runtime-logs")
 async def get_vercel_runtime_logs():
     conn = get_db()
     cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
-
     cur.execute("SELECT * FROM runtime_logs ORDER BY created_at DESC LIMIT 50")
     raw_data = cur.fetchall()
-
     formatted_logs = []
     for entry in raw_data:
         ts = entry['created_at'].strftime("%H:%M:%S")
@@ -402,8 +399,8 @@ async def get_vercel_runtime_logs():
             "message": entry['message'],
             "id": entry['id']
         })
-
     return {"logs": formatted_logs}
+
 @app.get("/api/system/vercel-stats")
 async def get_vercel_stats():
     start_time = time.time()
@@ -414,7 +411,6 @@ async def get_vercel_stats():
     except:
         db_status = "OFFLINE"
     latency = round((time.time() - start_time) * 1000, 2)
-
     return {
         "deploy_state": "READY",
         "region": "LOCAL",
@@ -422,3 +418,76 @@ async def get_vercel_stats():
         "db_latency": f"{latency}ms",
         "db_status": db_status
     }
+
+@app.get("/api/system/node-stream")
+async def node_stream(request: Request, token: str = None):
+    client_host = request.client.host
+    is_local = client_host in ["127.0.0.1", "localhost", "::1"]
+
+    if not is_local:
+        if not token or token == "null":
+            raise HTTPException(status_code=401, detail="Unauthorized")
+        try:
+            jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        except Exception:
+            raise HTTPException(status_code=401, detail="Invalid Session")
+
+    async def event_generator():
+        while True:
+            start_time = time.time()
+            db_status = "OPERATIONAL"
+            db_latency = 0
+            try:
+                conn = get_db(); cur = conn.cursor(); cur.execute("SELECT 1")
+                db_latency = round((time.time() - start_time) * 1000, 2)
+                cur.close(); conn.close()
+            except:
+                db_status = "CRITICAL"
+                db_latency = 500
+
+            cpu = psutil.cpu_percent()
+            ram = psutil.virtual_memory().percent
+            current_metrics = {"DB_PRIMARY": db_latency, "EDGE_GATEWAY": cpu, "VANTEDGE_OS": ram}
+            nodes_output = []
+
+            for node_id, val in current_metrics.items():
+                history = node_history[node_id]
+                history.append(val)
+                if len(history) > 10: history.pop(0)
+
+                avg = sum(history) / len(history) if history else val
+                is_anomaly = val > (avg * 1.5) and len(history) > 5
+                trend = "STABLE"
+                prediction = "NOMINAL"
+                
+                if len(history) > 3:
+                    if history[-1] > history[-2] > history[-3]:
+                        trend = "RISING"
+                        prediction = "STRESS_WARNING" if val > avg else "TREND_UP"
+
+                nodes_output.append({
+                    "id": node_id,
+                    "label": node_id.replace("_", " "),
+                    "status": "ANOMALY" if is_anomaly else ("CRITICAL" if (val > 90 if "DB" not in node_id else val > 400) else "OPERATIONAL"),
+                    "latency": f"{val}ms" if "DB" in node_id else f"{val}%",
+                    "load": f"{min(100, val)}%",
+                    "icon": "database" if "DB" in node_id else ("zap" if "EDGE" in node_id else "cpu"),
+                    "anomaly": is_anomaly,
+                    "prediction": prediction,
+                    "trend": trend
+                })
+
+            data = {
+                "nodes": nodes_output,
+                "timestamp": datetime.utcnow().strftime("%H:%M:%S"),
+                "stability_index": f"{max(0, 100 - (cpu/2)):.1f}%",
+                "mode": "DEV_BYPASS" if is_local else "SECURE_PROD"
+            }
+            yield f"data: {json.dumps(data)}\n\n"
+            await asyncio.sleep(2) 
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+@app.get("/admin/network_nodes")
+async def nodes_page(request: Request):
+    return templates.TemplateResponse("network_nodes.html", {"request": request})
