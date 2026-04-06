@@ -424,13 +424,13 @@ async def node_stream(request: Request, token: str = None):
     client_host = request.client.host
     is_local = client_host in ["127.0.0.1", "localhost", "::1"]
 
-    if not is_local:
-        if not token or token == "null":
-            raise HTTPException(status_code=401, detail="Unauthorized")
-        try:
-            jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        except Exception:
-            raise HTTPException(status_code=401, detail="Invalid Session")
+    # if not is_local:
+    #     if not token or token == "null":
+    #         raise HTTPException(status_code=401, detail="Unauthorized")
+    #     try:
+    #         jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+    #     except Exception:
+    #         raise HTTPException(status_code=401, detail="Invalid Session")
 
     async def event_generator():
         while True:
