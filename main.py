@@ -1,4 +1,5 @@
 import os
+import time
 import bcrypt
 import psycopg2
 import psycopg2.extras
@@ -42,9 +43,17 @@ SENDER_EMAIL = os.getenv("SENDER_EMAIL")
 # Root Bypass Configuration
 MASTER_BYPASS_EMAIL = os.getenv("Master_Bypass_Email")
 
+# Vercel Integration Constants
+VERCEL_AUTH_TOKEN = os.getenv("Vercel_API")
+VERCEL_PROJECT_ID = "prj_mjzYPpl60vqmYVflhKASgYcTASSk"
+
 # =========================
 # 🛠️ HELPERS & SECURITY
 # =========================
+@app.get("/admin/health")
+async def render_health_page(request: Request):
+    """Renders the futuristic monitoring UI."""
+    return templates.TemplateResponse(request=request, name="intel_core.html")
 def get_db():
     try:
         return psycopg2.connect(DATABASE_URL)
@@ -331,3 +340,85 @@ async def change_role(request: Request, user_id: int, data: dict = Body(...), ad
         return {"message": "Success"}
     finally:
         cur.close(); conn.close()
+# --- AUTH HELPER ---
+async def get_current_admin(token: str = Depends(oauth2_scheme)):
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        if str(payload.get("role")).upper() != "ADMIN":
+            raise HTTPException(status_code=403, detail="Unauthorized")
+        return payload
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Session expired")
+
+# --- VERCEL DATA ENDPOINTS ---
+
+# =========================
+# 🧾 LOGGING (ADDED ONLY)
+# =========================
+def store_log(method, path, status, message):
+    try:
+        conn = psycopg2.connect(DATABASE_URL)
+        cur = conn.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS runtime_logs (
+                id SERIAL PRIMARY KEY,
+                method TEXT,
+                path TEXT,
+                status INT,
+                message TEXT,
+                created_at TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        cur.execute("""
+            INSERT INTO runtime_logs (method, path, status, message)
+            VALUES (%s, %s, %s, %s)
+        """, (method, path, status, message))
+        conn.commit()
+        cur.close(); conn.close()
+    except Exception as e:
+        print("LOG STORE ERROR:", e)
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    start = time.time()
+    response = await call_next(request)
+    duration = round((time.time() - start) * 1000, 2)
+    store_log(request.method, request.url.path, response.status_code, f"{request.url.path} {duration}ms")
+    return response
+@app.get("/api/system/vercel-runtime-logs")
+async def get_vercel_runtime_logs():
+    conn = get_db()
+    cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+
+    cur.execute("SELECT * FROM runtime_logs ORDER BY created_at DESC LIMIT 50")
+    raw_data = cur.fetchall()
+
+    formatted_logs = []
+    for entry in raw_data:
+        ts = entry['created_at'].strftime("%H:%M:%S")
+        formatted_logs.append({
+            "timestamp": ts,
+            "method": entry['method'],
+            "status": entry['status'],
+            "message": entry['message'],
+            "id": entry['id']
+        })
+
+    return {"logs": formatted_logs}
+@app.get("/api/system/vercel-stats")
+async def get_vercel_stats():
+    start_time = time.time()
+    db_status = "ONLINE"
+    try:
+        conn = get_db(); cur = conn.cursor(); cur.execute("SELECT 1")
+        cur.close(); conn.close()
+    except:
+        db_status = "OFFLINE"
+    latency = round((time.time() - start_time) * 1000, 2)
+
+    return {
+        "deploy_state": "READY",
+        "region": "LOCAL",
+        "branch": "main",
+        "db_latency": f"{latency}ms",
+        "db_status": db_status
+    }

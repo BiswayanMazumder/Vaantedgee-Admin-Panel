@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VANTEDGE // INTEL_CORE</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;700&family=JetBrains+Mono&display=swap');
+
+        :root {
+            --neon-green: #00ffbb;
+            --neon-border: rgba(0, 255, 187, 0.2);
+            --glass: rgba(255, 255, 255, 0.02);
+        }
+
+        body {
+            background-color: #030303;
+            color: var(--neon-green);
+            font-family: 'Space Grotesk', sans-serif;
+            overflow-x: hidden;
+            margin: 0;
+        }
+
+        .bg-grid {
+            position: fixed;
+            inset: 0;
+            background-image: linear-gradient(to right, rgba(0, 255, 187, 0.05) 1px, transparent 1px),
+                              linear-gradient(to bottom, rgba(0, 255, 187, 0.05) 1px, transparent 1px);
+            background-size: 50px 50px;
+            z-index: -1;
+            mask-image: radial-gradient(circle at center, black, transparent 80%);
+        }
+
+        .neo-card {
+            background: var(--glass);
+            backdrop-filter: blur(15px);
+            border: 1px solid var(--neon-border);
+            border-radius: 24px;
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .neo-card:hover {
+            border-color: var(--neon-green);
+            box-shadow: 0 0 30px rgba(0, 255, 187, 0.15);
+        }
+
+        .terminal-text {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            scrollbar-width: thin;
+            scrollbar-color: var(--neon-border) transparent;
+        }
+
+        .terminal-text::-webkit-scrollbar { width: 4px; }
+        .terminal-text::-webkit-scrollbar-thumb { background: var(--neon-border); border-radius: 10px; }
+
+        .btn-dash {
+            border: 1px solid var(--neon-green);
+            color: var(--neon-green);
+            transition: 0.3s;
+        }
+
+        .btn-dash:hover {
+            background: var(--neon-green);
+            color: #000;
+            box-shadow: 0 0 20px var(--neon-green);
+        }
+
+        .pulse-dot {
+            width: 8px; height: 8px;
+            background: var(--neon-green);
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 1; }
+            100% { transform: scale(2.5); opacity: 0; }
+        }
+    </style>
+</head>
+<body class="p-4 md:p-10">
+    <div class="bg-grid"></div>
+    
+    <div class="max-w-6xl mx-auto">
+        <nav class="flex justify-between items-center mb-12 border-b border-emerald-500/10 pb-6">
+            <div class="flex items-center gap-4">
+                <div class="pulse-dot"></div>
+                <h1 class="text-2xl font-bold tracking-widest uppercase" style="text-shadow: 0 0 10px rgba(0, 255, 187, 0.5);">Intel_Core.sys</h1>
+            </div>
+            <a href="/admin" class="btn-dash px-6 py-2 rounded-full flex items-center gap-2 font-bold text-xs uppercase tracking-widest group">
+                <i data-lucide="layout-dashboard" class="w-4 h-4"></i>
+                Return to Command
+            </a>
+        </nav>
+
+        <main class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div class="neo-card p-8 flex flex-col items-center justify-center text-center">
+                <i data-lucide="cloud" class="mb-4 opacity-40"></i>
+                <h3 class="text-[10px] uppercase tracking-[0.4em] text-white/40 mb-2">Vercel Status</h3>
+                <div id="v-state" class="text-4xl font-bold uppercase tracking-tighter">Syncing</div>
+                <div id="v-region" class="mt-4 text-[11px] font-mono opacity-50 uppercase tracking-widest">Region: ---</div>
+            </div>
+
+            <div class="neo-card p-8 border-l-4 border-l-emerald-500">
+                <div class="flex justify-between items-start mb-6">
+                    <i data-lucide="database" class="text-emerald-400"></i>
+                    <span id="db-status" class="text-[9px] px-2 py-1 bg-emerald-500/10 rounded border border-emerald-500/20 uppercase">Checking</span>
+                </div>
+                <h3 class="text-[10px] uppercase tracking-[0.4em] text-white/40 mb-2">DB Response Time</h3>
+                <div id="db-latency" class="text-5xl font-bold tracking-tighter italic">--<span class="text-xl ml-2">ms</span></div>
+            </div>
+
+            <div class="neo-card p-8">
+                <i data-lucide="git-branch" class="mb-6 text-cyan-400"></i>
+                <h3 class="text-[10px] uppercase tracking-[0.4em] text-white/40 mb-2">Active Environment</h3>
+                <div id="v-env" class="text-3xl font-bold uppercase tracking-tight">Production</div>
+                <div id="v-branch" class="mt-4 text-[11px] font-mono text-cyan-400 opacity-80 uppercase">Branch: main</div>
+            </div>
+
+            <div class="lg:col-span-3 neo-card p-6 min-h-[300px] flex flex-col">
+                <div class="flex items-center justify-between mb-4 border-b border-white/5 pb-2">
+                    <div class="flex gap-2">
+                        <div class="w-2 h-2 rounded-full bg-red-500/50"></div>
+                        <div class="w-2 h-2 rounded-full bg-yellow-500/50"></div>
+                        <div class="w-2 h-2 rounded-full bg-green-500/50"></div>
+                    </div>
+                    <span class="text-[10px] font-mono text-white/20 uppercase tracking-[0.2em]">System_Output_Stream</span>
+                </div>
+                <div id="terminal-feed" class="terminal-text flex-1 overflow-y-auto space-y-2 pr-2">
+                    <p class="text-emerald-500/40">> Initializing Data Stream...</p>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        lucide.createIcons();
+        // const token = localStorage.getItem("access_token");
+
+        async function syncData() {
+            // if (!token) {
+            //     document.getElementById("terminal-feed").innerHTML = `<p class="text-red-500">> CRITICAL: SESSION_NOT_FOUND. PLEASE LOGIN.</p>`;
+            //     return;
+            // }
+
+            try {
+                // Fetch both Stats and Vercel Runtime Logs
+                const res = await fetch("/api/system/vercel-stats");
+                const logRes = await fetch("/api/system/vercel-runtime-logs");
+                const data = await res.json();
+
+                // 1. Update Top Cards
+                document.getElementById("v-state").innerText = data.deploy_state || "READY";
+                document.getElementById("db-latency").innerText = (data.db_latency || "0ms").replace('ms', '');
+                document.getElementById("db-status").innerText = data.db_status || "OFFLINE";
+                document.getElementById("v-region").innerText = `Region: ${data.region}`;
+                document.getElementById("v-branch").innerText = `Branch: ${data.branch}`;
+
+                // 2. Fetch and Render Runtime Logs into the box
+                const logData = await logRes.json();
+
+                if (logData.logs) {
+                    const terminal = document.getElementById("terminal-feed");
+                    terminal.innerHTML = ""; // Clear for fresh stream
+                    
+                    logData.logs.forEach(log => {
+                        const line = document.createElement("p");
+                        // 404/Error Color Logic
+                        let statusColor = "text-emerald-500/80"; 
+                        if (log.status >= 400) statusColor = "text-orange-400";
+                        if (log.status >= 500) statusColor = "text-red-500";
+
+                        line.innerHTML = `
+                            <span class="opacity-30">[${log.timestamp}]</span>
+                            <span class="ml-2 font-bold ${statusColor}">${log.method} ${log.status}</span>
+                            <span class="ml-2 text-white/60 tracking-tight">${log.message || log.path}</span>
+                        `;
+                        terminal.appendChild(line);
+                    });
+                }
+
+            } catch (err) {
+                console.error("Sync Error:", err);
+            }
+        }
+
+        // Initialize and sync every 4 seconds
+        syncData();
+        setInterval(syncData, 15000);
+    </script>
+</body>
+</html>
