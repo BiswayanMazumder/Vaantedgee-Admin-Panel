@@ -2,36 +2,115 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>VANTEDGE // NODE_STREAM</title>
+    <title>VANTEDGE // EMERGENCY_PROTOCOL</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono&display=swap');
-        body { background: #000; color: #00ffbb; font-family: 'JetBrains Mono', monospace; overflow: hidden; }
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
+        
+        :root {
+            --neon-green: #00ffbb;
+            --emergency-red: #ff0044;
+            --bg-black: #000;
+        }
+
+        body { 
+            background: var(--bg-black); 
+            color: var(--neon-green); 
+            font-family: 'JetBrains Mono', monospace; 
+            overflow: hidden;
+            transition: background 0.5s ease;
+        }
         
         .node-card {
             background: rgba(0, 255, 187, 0.02);
             border: 1px solid rgba(0, 255, 187, 0.1);
             backdrop-filter: blur(10px);
             transition: 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 10;
+        }
+
+        /* --- EMERGENCY OVERLAY --- */
+        #emergency-overlay {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            opacity: 0;
+            z-index: 50;
+            transition: opacity 0.5s ease;
+            background: radial-gradient(circle, transparent 40%, rgba(255, 0, 68, 0.15) 100%);
+            border: 0px solid var(--emergency-red);
+        }
+
+        /* Critical State Classes */
+        body.critical-mode {
+            background: #0a0000;
+        }
+
+        body.critical-mode #emergency-overlay {
+            opacity: 1;
+            border-width: 4px;
+            animation: border-pulse 1.5s infinite;
+        }
+
+        @keyframes border-pulse {
+            0% { box-shadow: inset 0 0 20px rgba(255, 0, 68, 0.2); }
+            50% { box-shadow: inset 0 0 60px rgba(255, 0, 68, 0.5); }
+            100% { box-shadow: inset 0 0 20px rgba(255, 0, 68, 0.2); }
+        }
+
+        /* Ticker Animation */
+        #threat-ticker {
+            position: fixed;
+            bottom: 0;
+            width: 100%;
+            background: var(--emergency-red);
+            color: white;
+            font-weight: bold;
+            padding: 4px 0;
+            transform: translateY(100%);
+            transition: 0.5s ease;
+            z-index: 100;
+        }
+
+        body.critical-mode #threat-ticker {
+            transform: translateY(0);
+        }
+
+        .marquee {
+            display: flex;
+            overflow: hidden;
+            white-space: nowrap;
+        }
+
+        .marquee-content {
+            display: flex;
+            animation: marquee 10s linear infinite;
+        }
+
+        @keyframes marquee {
+            0% { transform: translateX(0%); }
+            100% { transform: translateX(-50%); }
         }
 
         .bar-fill { transition: width 1s cubic-bezier(0.1, 0.7, 1.0, 0.1); }
         
-        /* CRT Scanline Effect */
-        body::before {
+        /* CRT Scanline */
+        body::after {
             content: " "; display: block; position: absolute; top: 0; left: 0; bottom: 0; right: 0;
-            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
-            z-index: 2; background-size: 100% 2px, 3px 100%; pointer-events: none;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%), 
+                        linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
+            z-index: 60; background-size: 100% 2px, 3px 100%; pointer-events: none;
         }
 
         .glow { text-shadow: 0 0 15px rgba(0, 255, 187, 0.6); }
+        .glow-red { text-shadow: 0 0 15px rgba(255, 0, 68, 0.8); color: var(--emergency-red); }
 
         .btn-terminal {
             position: relative;
             padding: 0.5rem 1.5rem;
             background: transparent;
-            color: #00ffbb;
+            color: var(--neon-green);
             font-size: 10px;
             font-weight: bold;
             text-transform: uppercase;
@@ -42,35 +121,21 @@
             display: flex;
             align-items: center;
             gap: 8px;
-        }
-
-        .btn-terminal::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: -100%;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(90deg, transparent, rgba(0, 255, 187, 0.2), transparent);
-            transition: 0.5s;
-        }
-
-        .btn-terminal:hover::before {
-            left: 100%;
+            z-index: 100;
         }
 
         .btn-terminal:hover {
             background: rgba(0, 255, 187, 0.1);
-            border-color: #00ffbb;
+            border-color: var(--neon-green);
             box-shadow: 0 0 15px rgba(0, 255, 187, 0.4);
             transform: translateY(-2px);
         }
 
-        /* Anomaly Glitch Effect */
         .anomaly-alert {
             animation: glitch-red 0.2s infinite;
-            border-color: #ff0055 !important;
+            border-color: var(--emergency-red) !important;
             box-shadow: 0 0 30px rgba(255, 0, 85, 0.2) !important;
+            background: rgba(255, 0, 68, 0.05) !important;
         }
 
         @keyframes glitch-red {
@@ -84,10 +149,21 @@
     </style>
 </head>
 <body class="p-6 md:p-12">
+    <div id="emergency-overlay"></div>
+    
+    <div id="threat-ticker">
+        <div class="marquee">
+            <div class="marquee-content uppercase text-[10px] tracking-tighter">
+                &nbsp; [!] SYSTEM_COMPROMISED // PROTOCOL_OMEGA_INITIATED // NODE_FAILURE_DETECTED // UNAUTHORIZED_SPIKE_OBSERVED // MONITORING_ACTIVE [!] &nbsp;
+                &nbsp; [!] SYSTEM_COMPROMISED // PROTOCOL_OMEGA_INITIATED // NODE_FAILURE_DETECTED // UNAUTHORIZED_SPIKE_OBSERVED // MONITORING_ACTIVE [!] &nbsp;
+            </div>
+        </div>
+    </div>
+
     <div class="max-w-6xl mx-auto relative z-10">
         <header class="flex justify-between items-center mb-12 border-b border-emerald-500/20 pb-6">
             <div>
-                <h1 class="text-3xl font-bold tracking-tighter uppercase italic glow">Node_Diagnostics_v2</h1>
+                <h1 id="main-title" class="text-3xl font-bold tracking-tighter uppercase italic glow transition-colors duration-500">Node_Diagnostics_v2</h1>
                 <p class="text-[10px] mt-2 opacity-50 tracking-[0.5em]">
                     UPLINK: <span id="status" class="text-emerald-400 text-xs">HANDSHAKE_INITIATED</span> | 
                     STABILITY: <span id="stability" class="text-emerald-400 text-xs">100%</span>
@@ -111,8 +187,9 @@
     <script>
         const token = localStorage.getItem("access_token") || "dev_mode";
         const grid = document.getElementById("node-matrix");
+        const body = document.body;
+        const title = document.getElementById("main-title");
         
-        // Start EventSource 
         const es = new EventSource(`/api/system/node-stream?token=${token}`);
 
         es.onopen = () => {
@@ -124,12 +201,14 @@
             document.getElementById("clock").innerText = data.timestamp;
             document.getElementById("stability").innerText = data.stability_index;
             
+            let hasCriticalNode = false;
             grid.innerHTML = "";
+            
             data.nodes.forEach(node => {
                 const isAnomaly = node.anomaly;
                 const isCrit = node.status === "CRITICAL" || node.status === "ANOMALY";
+                if (isCrit) hasCriticalNode = true;
                 
-                // Set tag colors based on AI prediction
                 let tagClass = "bg-emerald-500/10 text-emerald-400";
                 if(node.prediction === "STRESS_WARNING") tagClass = "bg-orange-500/10 text-orange-400";
                 if(isAnomaly) tagClass = "bg-red-500/20 text-red-500 animate-pulse";
@@ -166,6 +245,20 @@
                     </div>
                 `;
             });
+
+            // Trigger Global Emergency Protocol
+            if (hasCriticalNode) {
+                body.classList.add('critical-mode');
+                title.classList.remove('glow');
+                title.classList.add('glow-red');
+                title.innerText = "!! SYSTEM_CRITICAL !!";
+            } else {
+                body.classList.remove('critical-mode');
+                title.classList.remove('glow-red');
+                title.classList.add('glow');
+                title.innerText = "Node_Diagnostics_v2";
+            }
+
             lucide.createIcons();
         };
 
