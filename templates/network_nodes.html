@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <title>VANTEDGE // EMERGENCY_PROTOCOL</title>
@@ -7,21 +8,21 @@
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
-        
+
         :root {
             --neon-green: #00ffbb;
             --emergency-red: #ff0044;
             --bg-black: #000;
         }
 
-        body { 
-            background: var(--bg-black); 
-            color: var(--neon-green); 
-            font-family: 'JetBrains Mono', monospace; 
-            overflow: hidden;
+        body {
+            background: var(--bg-black);
+            color: var(--neon-green);
+            font-family: 'JetBrains Mono', monospace;
+            overflow-y: scroll;
             transition: background 0.5s ease;
         }
-        
+
         .node-card {
             background: rgba(0, 255, 187, 0.02);
             border: 1px solid rgba(0, 255, 187, 0.1);
@@ -54,9 +55,17 @@
         }
 
         @keyframes border-pulse {
-            0% { box-shadow: inset 0 0 20px rgba(255, 0, 68, 0.2); }
-            50% { box-shadow: inset 0 0 60px rgba(255, 0, 68, 0.5); }
-            100% { box-shadow: inset 0 0 20px rgba(255, 0, 68, 0.2); }
+            0% {
+                box-shadow: inset 0 0 20px rgba(255, 0, 68, 0.2);
+            }
+
+            50% {
+                box-shadow: inset 0 0 60px rgba(255, 0, 68, 0.5);
+            }
+
+            100% {
+                box-shadow: inset 0 0 20px rgba(255, 0, 68, 0.2);
+            }
         }
 
         /* Ticker Animation */
@@ -89,22 +98,43 @@
         }
 
         @keyframes marquee {
-            0% { transform: translateX(0%); }
-            100% { transform: translateX(-50%); }
+            0% {
+                transform: translateX(0%);
+            }
+
+            100% {
+                transform: translateX(-50%);
+            }
         }
 
-        .bar-fill { transition: width 1s cubic-bezier(0.1, 0.7, 1.0, 0.1); }
-        
+        .bar-fill {
+            transition: width 1s cubic-bezier(0.1, 0.7, 1.0, 0.1);
+        }
+
         /* CRT Scanline */
         body::after {
-            content: " "; display: block; position: absolute; top: 0; left: 0; bottom: 0; right: 0;
-            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%), 
-                        linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
-            z-index: 60; background-size: 100% 2px, 3px 100%; pointer-events: none;
+            content: " ";
+            display: block;
+            position: absolute;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            right: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%),
+                linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
+            z-index: 60;
+            background-size: 100% 2px, 3px 100%;
+            pointer-events: none;
         }
 
-        .glow { text-shadow: 0 0 15px rgba(0, 255, 187, 0.6); }
-        .glow-red { text-shadow: 0 0 15px rgba(255, 0, 68, 0.8); color: var(--emergency-red); }
+        .glow {
+            text-shadow: 0 0 15px rgba(0, 255, 187, 0.6);
+        }
+
+        .glow-red {
+            text-shadow: 0 0 15px rgba(255, 0, 68, 0.8);
+            color: var(--emergency-red);
+        }
 
         .btn-terminal {
             position: relative;
@@ -139,23 +169,99 @@
         }
 
         @keyframes glitch-red {
-            0% { transform: translate(0); }
-            20% { transform: translate(-2px, 1px); }
-            40% { transform: translate(2px, -1px); }
-            100% { transform: translate(0); }
+            0% {
+                transform: translate(0);
+            }
+
+            20% {
+                transform: translate(-2px, 1px);
+            }
+
+            40% {
+                transform: translate(2px, -1px);
+            }
+
+            100% {
+                transform: translate(0);
+            }
         }
 
-        .prediction-tag { font-size: 8px; padding: 2px 6px; border-radius: 4px; text-transform: uppercase; font-weight: bold; }
+        .prediction-tag {
+            font-size: 8px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            text-transform: uppercase;
+            font-weight: bold;
+        }
+
+        .terminal {
+            background: radial-gradient(circle at top, #001a14, #000);
+            box-shadow: 0 0 30px rgba(0, 255, 187, 0.1);
+        }
+
+        .terminal span {
+            text-shadow: 0 0 8px rgba(0, 255, 187, 0.7);
+        }
+
+        .cyber-input-wrapper {
+            position: relative;
+            width: 100%;
+        }
+
+        .cyber-input-wrapper input {
+            width: 100%;
+            background: transparent;
+            border: none;
+            outline: none;
+            color: #00ffbb;
+            padding: 8px;
+            position: relative;
+            z-index: 2;
+        }
+
+        .input-glow {
+            position: absolute;
+            inset: 0;
+            border: 1px solid rgba(0, 255, 187, 0.3);
+            border-radius: 6px;
+            box-shadow: 0 0 10px rgba(0, 255, 187, 0.2);
+            transition: 0.3s;
+        }
+
+        .cyber-input-wrapper input:focus+.input-glow {
+            border-color: #00ffbb;
+            box-shadow: 0 0 20px #00ffbb;
+        }
+
+        .loader-line {
+            font-size: 10px;
+            color: #00ffbb;
+            opacity: 0.7;
+            animation: pulse 1s infinite alternate;
+        }
+
+        @keyframes pulse {
+            from {
+                opacity: 0.4;
+            }
+
+            to {
+                opacity: 1;
+            }
+        }
     </style>
 </head>
+
 <body class="p-6 md:p-12">
     <div id="emergency-overlay"></div>
-    
+
     <div id="threat-ticker">
         <div class="marquee">
             <div class="marquee-content uppercase text-[10px] tracking-tighter">
-                &nbsp; [!] SYSTEM_COMPROMISED // PROTOCOL_OMEGA_INITIATED // NODE_FAILURE_DETECTED // UNAUTHORIZED_SPIKE_OBSERVED // MONITORING_ACTIVE [!] &nbsp;
-                &nbsp; [!] SYSTEM_COMPROMISED // PROTOCOL_OMEGA_INITIATED // NODE_FAILURE_DETECTED // UNAUTHORIZED_SPIKE_OBSERVED // MONITORING_ACTIVE [!] &nbsp;
+                &nbsp; [!] SYSTEM_COMPROMISED // PROTOCOL_OMEGA_INITIATED // NODE_FAILURE_DETECTED //
+                UNAUTHORIZED_SPIKE_OBSERVED // MONITORING_ACTIVE [!] &nbsp;
+                &nbsp; [!] SYSTEM_COMPROMISED // PROTOCOL_OMEGA_INITIATED // NODE_FAILURE_DETECTED //
+                UNAUTHORIZED_SPIKE_OBSERVED // MONITORING_ACTIVE [!] &nbsp;
             </div>
         </div>
     </div>
@@ -163,16 +269,18 @@
     <div class="max-w-6xl mx-auto relative z-10">
         <header class="flex justify-between items-center mb-12 border-b border-emerald-500/20 pb-6">
             <div>
-                <h1 id="main-title" class="text-3xl font-bold tracking-tighter uppercase italic glow transition-colors duration-500">Node_Diagnostics_v2</h1>
+                <h1 id="main-title"
+                    class="text-3xl font-bold tracking-tighter uppercase italic glow transition-colors duration-500">
+                    Node_Diagnostics_v2</h1>
                 <p class="text-[10px] mt-2 opacity-50 tracking-[0.5em]">
-                    UPLINK: <span id="status" class="text-emerald-400 text-xs">HANDSHAKE_INITIATED</span> | 
+                    UPLINK: <span id="status" class="text-emerald-400 text-xs">HANDSHAKE_INITIATED</span> |
                     STABILITY: <span id="stability" class="text-emerald-400 text-xs">100%</span>
                 </p>
             </div>
-            
+
             <div class="flex items-center gap-6">
                 <div id="clock" class="hidden md:block text-2xl font-bold opacity-80 tabular-nums">00:00:00</div>
-                
+
                 <a href="/admin" class="btn-terminal rounded-sm">
                     <span>Return_to_HQ</span>
                     <i data-lucide="arrow-right" class="w-4 h-4"></i>
@@ -181,7 +289,22 @@
         </header>
 
         <div id="node-matrix" class="grid grid-cols-1 md:grid-cols-3 gap-8">
+        </div>
+        <div class="mt-12">
+            <h2 class="text-lg mb-4 glow">AI_SECURITY_COPILOT</h2>
+
+            <div class="terminal p-6 rounded-xl border border-emerald-500/20">
+                <div id="terminal-output" class="text-sm space-y-1"></div>
+
+                <div class="flex gap-2 mt-4 items-center">
+                    <span class="opacity-60">>></span>
+                    <div class="cyber-input-wrapper">
+                        <input id="terminal-input" placeholder="Ask AI about system..." />
+                        <div class="input-glow"></div>
+                    </div>
+                </div>
             </div>
+        </div>
     </div>
 
     <script>
@@ -189,7 +312,7 @@
         const grid = document.getElementById("node-matrix");
         const body = document.body;
         const title = document.getElementById("main-title");
-        
+
         const es = new EventSource(`/api/system/node-stream?token=${token}`);
 
         es.onopen = () => {
@@ -200,18 +323,18 @@
             const data = JSON.parse(e.data);
             document.getElementById("clock").innerText = data.timestamp;
             document.getElementById("stability").innerText = data.stability_index;
-            
+
             let hasCriticalNode = false;
             grid.innerHTML = "";
-            
+
             data.nodes.forEach(node => {
                 const isAnomaly = node.anomaly;
                 const isCrit = node.status === "CRITICAL" || node.status === "ANOMALY";
                 if (isCrit) hasCriticalNode = true;
-                
+
                 let tagClass = "bg-emerald-500/10 text-emerald-400";
-                if(node.prediction === "STRESS_WARNING") tagClass = "bg-orange-500/10 text-orange-400";
-                if(isAnomaly) tagClass = "bg-red-500/20 text-red-500 animate-pulse";
+                if (node.prediction === "STRESS_WARNING") tagClass = "bg-orange-500/10 text-orange-400";
+                if (isAnomaly) tagClass = "bg-red-500/20 text-red-500 animate-pulse";
 
                 grid.innerHTML += `
                     <div class="node-card p-8 rounded-[2rem] border-l-4 ${isAnomaly ? 'anomaly-alert' : (isCrit ? 'border-red-500' : 'border-emerald-500')}">
@@ -266,6 +389,65 @@
             document.getElementById("status").innerText = "UPLINK_OFFLINE_RETRYING";
             document.getElementById("status").classList.add("text-red-500");
         };
+        const input = document.getElementById("terminal-input");
+        const output = document.getElementById("terminal-output");
+
+        function appendLine(text, type) {
+            const div = document.createElement("div");
+            div.textContent = text;
+            div.className = type === "user" ? "text-emerald-400" : "text-white";
+            output.appendChild(div);
+            output.scrollTop = output.scrollHeight;
+        }
+
+        function formatAIText(text) {
+            return text
+                .replace(/\*\*(.*?)\*\*/g, '<span class="text-emerald-400 font-bold glow">$1</span>')
+                .replace(/### (.*?)/g, '<div class="text-red-400 font-bold mt-2">$1</div>')
+                .replace(/\n/g, "<br>");
+        }
+
+        input.addEventListener("keydown", async (e) => {
+            if (e.key === "Enter") {
+                const query = input.value;
+                input.value = "";
+
+                appendLine(`> ${query}`, "user");
+
+                // 🔥 futuristic loading lines
+                appendLine("[BOOTING AI CORE...]", "ai");
+                appendLine("[SCANNING LOGS...]", "ai");
+
+                const responseDiv = document.createElement("div");
+                output.appendChild(responseDiv);
+
+                const res = await fetch("/api/admin/ai-copilot-stream", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": "Bearer " + localStorage.getItem("access_token")
+                    },
+                    body: JSON.stringify({ query })
+                });
+
+                const reader = res.body.getReader();
+                const decoder = new TextDecoder();
+
+                let fullText = "";
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    const chunk = decoder.decode(value);
+                    fullText += chunk;
+
+                    responseDiv.innerHTML = formatAIText(fullText);
+                    output.scrollTop = output.scrollHeight;
+                }
+            }
+        });
     </script>
 </body>
+
 </html>

@@ -11,3 +11,4 @@ google-genai
 jinja2
 python-multipart
 psutil
+google-genai

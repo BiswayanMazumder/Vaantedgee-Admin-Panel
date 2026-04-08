@@ -5,6 +5,7 @@ import psycopg2
 import psycopg2.extras
 import json
 import asyncio
+from google import genai
 import psutil
 from datetime import datetime, timedelta
 from fastapi.responses import StreamingResponse
@@ -40,7 +41,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/admin/login")
 DATABASE_URL = os.getenv("DATABASE_URL")
 SECRET_KEY = os.getenv("SECRET_KEY") or "vantedgesecret777"
 ALGORITHM = "HS256"
-
+client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 # Brevo Config
 BREVO_API_KEY = os.getenv("BREVO_API_KEY")
 SENDER_EMAIL = os.getenv("SENDER_EMAIL")
@@ -492,3 +493,56 @@ async def node_stream(request: Request, token: str = None):
 @app.get("/admin/network_nodes")
 async def nodes_page(request: Request):
     return templates.TemplateResponse(request=request, name="network_nodes.html")
+@app.post("/api/admin/ai-copilot-stream")
+async def ai_copilot_stream(request: Request,):
+    body = await request.json()
+    query = body.get("query")
+
+    conn = get_db()
+    cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+
+    # 🔥 REAL DATA
+    cur.execute("SELECT action_type, details, ip_address FROM security_logs ORDER BY created_at DESC LIMIT 20")
+    logs = cur.fetchall()
+
+    cur.execute("SELECT method, path, status FROM runtime_logs ORDER BY created_at DESC LIMIT 20")
+    runtime = cur.fetchall()
+
+    cur.close()
+    conn.close()
+
+    logs_text = "\n".join([f"{l['action_type']} | {l['details']} | {l['ip_address']}" for l in logs])
+    runtime_text = "\n".join([f"{r['method']} {r['path']} {r['status']}" for r in runtime])
+
+    prompt = f"""
+You are VANTEDGE AI SECURITY CORE.
+
+Analyze real-time infrastructure data.
+
+User Query:
+{query}
+
+SECURITY LOGS:
+{logs_text}
+
+RUNTIME LOGS:
+{runtime_text}
+
+Instructions:
+- Detect threats
+- Identify anomalies
+- Give actionable insights
+- Be concise but sharp
+"""
+
+    def stream():
+        response = client.models.generate_content_stream(
+            model="gemini-3-flash-preview",
+            contents=prompt,
+        )
+
+        for chunk in response:
+            if chunk.text:
+                yield chunk.text
+
+    return StreamingResponse(stream(), media_type="text/plain")
